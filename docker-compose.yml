@@ -1,0 +1,21 @@
+services:
+  register:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kiro-auto-register
+    restart: "no"
+    environment:
+      HEADLESS: "true"
+      BROWSER_TYPE: "chrome"
+      DRIVER_STRATEGY: "system"
+      USE_UNDETECTED_CHROME: "false"
+      REGISTER_COUNT: "1"
+      REGISTER_INTERVAL: "30"
+      POST_PROBE: "true"
+      PROBE_TIMEOUT: "25"
+    volumes:
+      - ./config:/app/config
+      - ./key:/app/key
+      - ./logs:/app/logs
+    command: ["python", "src/runners/pipeline_run.py"]

@@ -236,6 +236,23 @@ python src/runners/debug_aws_login.py
 2. **AWS SSO Refresh Token** - 用于导入到 Kiro Account Manager（`aor` 开头）
 3. **Client ID/Secret** - AWS SSO OIDC 客户端凭据
 
+## 🐳 Docker Compose 运行
+
+适合 VPS 无人值守运行，支持“注册后自动探测并筛选可用账号”。
+
+```bash
+docker compose up --build
+```
+
+常用环境变量（在 `docker-compose.yml` 里改）：
+
+- `REGISTER_COUNT`：注册数量
+- `REGISTER_INTERVAL`：每个账号间隔秒数
+- `POST_PROBE`：注册后是否自动探测
+- `PROBE_TIMEOUT`：探测超时
+
+详细说明见：`docs/docker-compose-guide.md`
+
 
 
 ## 📝 注意事项

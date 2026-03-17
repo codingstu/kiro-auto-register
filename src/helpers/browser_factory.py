@@ -11,7 +11,7 @@ from pathlib import Path
 # 将 src 目录添加到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import HEADLESS, BROWSER_TYPE, DRIVER_STRATEGY
+from config import HEADLESS, BROWSER_TYPE, DRIVER_STRATEGY, USE_UNDETECTED_CHROME
 
 
 class BrowserFactory:
@@ -47,14 +47,15 @@ class BrowserFactory:
             from selenium.webdriver.edge.options import Options
             options = Options()
         else:
-            # 优先使用 undetected-chromedriver
-            try:
-                import undetected_chromedriver as uc
-                return self._create_undetected_chrome(proxy_url, user_agent, locale, accept_language)
-            except ImportError:
-                print("⚠️  undetected-chromedriver 未安装，使用标准 Selenium")
-                from selenium.webdriver.chrome.options import Options
-                options = Options()
+            # 优先使用 undetected-chromedriver，可通过配置关闭
+            if USE_UNDETECTED_CHROME:
+                try:
+                    import undetected_chromedriver as uc
+                    return self._create_undetected_chrome(proxy_url, user_agent, locale, accept_language)
+                except ImportError:
+                    print("⚠️  undetected-chromedriver 未安装，使用标准 Selenium")
+            from selenium.webdriver.chrome.options import Options
+            options = Options()
         
         # 配置通用选项
         self._configure_options(options, proxy_url, user_agent, locale, accept_language)

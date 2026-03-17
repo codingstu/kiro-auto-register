@@ -20,7 +20,7 @@ email:
 
 # 浏览器配置
 browser:
-  headless: false      # 是否无头模式
+  headless: true       # 是否无头模式
   slow_mo: 100         # 操作延迟（毫秒）
   
   # 浏览器类型: chrome 或 edge
