@@ -356,15 +356,31 @@ class BrowserFactory:
     
     def _inject_stealth_scripts(self, driver):
         """
-        注入反检测脚本
+        注入高级反检测脚本 - 使用 AntiDetectionManager
         """
         try:
-            driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-                'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
-            })
-            print("  ✓ 反检测脚本已注入")
+            from helpers.anti_detect import anti_detector
+            
+            # 注入隐形脚本
+            anti_detector.inject_stealth_scripts(driver)
+            
+            # 注入追踪防护
+            anti_detector.inject_tracking_prevention(driver)
+            
+            # 打印行为档案
+            print(anti_detector.get_behavior_summary())
+            
+            print("  ✓ 高级反检测脚本已注入")
         except Exception as e:
-            print(f"  ⚠️ 注入反检测脚本失败: {e}")
+            print(f"  ⚠️ 反检测脚本注入失败: {e}")
+            # 回退到基础隐形脚本
+            try:
+                driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                    'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+                })
+                print("  ✓ 基础反检测脚本已注入")
+            except Exception as e2:
+                print(f"  ⚠️ 基础反检测脚本也失败: {e2}")
     
     def _inject_hardware_fingerprint(self, driver):
         """

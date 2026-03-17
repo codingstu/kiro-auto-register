@@ -8,6 +8,40 @@ OIDC_TOKEN_URL = "https://oidc.us-east-1.amazonaws.com/token"
 MODELS_URL = "https://codewhisperer.us-east-1.amazonaws.com/ListAvailableModels?targetService=codium&workspaceContext=%7B%7D"
 
 
+def classify_probe_result(result: dict) -> tuple[str, str]:
+    """将探测结果标准化为分类和简短原因，便于定位问题。"""
+    error_text = (result.get("error") or "").upper()
+    stage = result.get("stage") or ""
+    refresh_status = result.get("refresh_status")
+    models_status = result.get("models_status")
+
+    if result.get("ok"):
+        return "available", "models_ok"
+
+    if "TEMPORARILY_SUSPENDED" in error_text:
+        return "suspended", "temporarily_suspended"
+
+    if stage == "refresh":
+        if refresh_status == 400:
+            return "refresh_failed", "invalid_refresh_token"
+        if refresh_status in (401, 403):
+            return "refresh_failed", "unauthorized_refresh"
+        if refresh_status is None and "REQUEST_ERROR" in error_text:
+            return "network_error", "refresh_request_error"
+        return "refresh_failed", f"refresh_status_{refresh_status}"
+
+    if stage == "models":
+        if models_status == 403:
+            return "access_denied", "models_forbidden"
+        if models_status == 429:
+            return "rate_limited", "models_rate_limited"
+        if models_status is None and "REQUEST_ERROR" in error_text:
+            return "network_error", "models_request_error"
+        return "models_failed", f"models_status_{models_status}"
+
+    return "unknown", "unclassified"
+
+
 def build_credentials_from_accounts(
     accounts_path: Path,
     output_all_path: Path,
@@ -177,22 +211,34 @@ def run_post_probe(base_dir: Path, probe_timeout: int = 25):
             "error": result.get("error", ""),
             "checkedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        category, reason = classify_probe_result(result)
+        row["category"] = category
+        row["reason"] = reason
         probe_results.append(row)
 
-        if result.get("ok"):
+        if category == "available":
             available.append(credential)
-        elif "TEMPORARILY_SUSPENDED" in (result.get("error") or ""):
+        elif category == "suspended":
             item = dict(credential)
             item["probeStage"] = row["stage"]
             item["probeStatus"] = row["models_status"] or row["refresh_status"]
             item["probeError"] = row["error"]
+            item["probeCategory"] = category
+            item["probeReason"] = reason
             suspended.append(item)
         else:
             item = dict(credential)
             item["probeStage"] = row["stage"]
             item["probeStatus"] = row["models_status"] or row["refresh_status"]
             item["probeError"] = row["error"]
+            item["probeCategory"] = category
+            item["probeReason"] = reason
             unknown.append(item)
+
+    category_counts = {}
+    for row in probe_results:
+        key = row.get("category", "unknown")
+        category_counts[key] = category_counts.get(key, 0) + 1
 
     (key_dir / "kiro_account_probe_result.json").write_text(
         json.dumps(probe_results, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -210,6 +256,7 @@ def run_post_probe(base_dir: Path, probe_timeout: int = 25):
         "availableCount": len(available),
         "suspendedCount": len(suspended),
         "unknownCount": len(unknown),
+        "categoryCounts": category_counts,
         "availableFile": "key/kiro_go_credentials_available.json",
         "suspendedFile": "key/kiro_go_credentials_suspended.json",
         "sourceProbeFile": "key/kiro_account_probe_result.json",

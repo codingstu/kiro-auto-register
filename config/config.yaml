@@ -9,6 +9,15 @@ email:
   # 生成的随机邮箱前缀长度
   prefix_length: 10
 
+  # 邮箱前缀风格: random 或 human_name（用于可读性）
+  prefix_style: "human_name"
+
+  # 人名前缀后附加随机后缀长度（避免重复）
+  prefix_random_suffix_length: 4
+
+  # 人名前缀分隔符，如 . 或 _
+  prefix_separator: "."
+
   # 等待验证邮件的超时时间（秒）
   wait_timeout: 120
 

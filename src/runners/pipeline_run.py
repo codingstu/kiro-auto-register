@@ -52,9 +52,13 @@ def main():
         for i in range(register_count):
             print(f"\n#### 第 {i + 1}/{register_count} 个账号 ####")
             try:
-                run()
-                success_count += 1
-                print(f"✅ 第 {i + 1} 个账号流程完成")
+                ok = run()
+                if ok:
+                    success_count += 1
+                    print(f"✅ 第 {i + 1} 个账号流程完成")
+                else:
+                    fail_count += 1
+                    print(f"❌ 第 {i + 1} 个账号流程未完成（未拿到有效凭证）")
             except Exception as exc:
                 fail_count += 1
                 print(f"❌ 第 {i + 1} 个账号流程异常: {exc}")

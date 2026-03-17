@@ -17,6 +17,8 @@ from services.email_service import create_temp_email, wait_for_verification_emai
 from selenium.webdriver.common.action_chains import ActionChains
 from helpers.multilang import lang_selector
 from helpers.browser_factory import create_driver as factory_create_driver, cleanup_driver
+from helpers.anti_detect import anti_detector
+from helpers.email_manager import email_manager
 from services.kiro_oauth import perform_kiro_oauth_in_browser, KiroOAuthClient
 from services.aws_sso_oidc import perform_aws_sso_oidc_auto
 
@@ -118,52 +120,61 @@ def save_account_info(email, password, name, jwt_token):
     print(f"账号信息已保存到 {accounts_file}")
 
 
-def human_delay(min_sec=0.5, max_sec=2.0):
-    """模拟人类操作的随机延迟"""
-    # 增加随机性，有时候会有更长的停顿 (模拟思考)
-    if random.random() < 0.15:  # 15% 概率有更长停顿
-        time.sleep(random.uniform(2.5, 5.0))
-    time.sleep(random.uniform(min_sec, max_sec))
+def human_delay(min_sec=0.5, max_sec=2.0, context="general"):
+    """自适应人类延迟 - 使用反检测管理器提供智能延迟"""
+    anti_detector.adaptive_delay(min_sec, max_sec, context)
 
 
 def human_type(element, text):
-    """模拟人类打字，速度随机波动"""
-    # 基础打字速度因子 (0.8 ~ 1.2)，模拟每个人打字速度不同
-    speed_factor = random.uniform(0.7, 1.3)
+    """模拟人类打字，使用反检测管理器的打字速度档案"""
+    speed_factor = anti_detector.behavior_profile['typing_speed']
     
     for char in text:
         element.send_keys(char)
-        # 基础延迟 + 随机波动
-        delay = random.uniform(0.04, 0.15) * speed_factor
+        # 基于行为档案的延迟
+        delay = speed_factor
         
         # 模拟偶尔的停顿 (打字间隙)
-        if random.random() < 0.05:
-            delay += random.uniform(0.2, 0.5)
+        if random.random() < 0.08:
+            delay += random.uniform(0.1, 0.4)
             
         time.sleep(delay)
 
 
 def human_click(driver, element):
-    """模拟人类鼠标点击"""
+    """模拟人类鼠标点击 - 使用反检测随机鼠标移动"""
     try:
-        # 1. 移动到元素位置 (带一点随机偏移)
+        # 使用 ActionChains 模拟真实鼠标移动
         action = ActionChains(driver)
-        # 偏移不需要太大，元素中心附近即可
-        offset_x = random.randint(-5, 5)
-        offset_y = random.randint(-5, 5)
         
-        action.move_to_element_with_offset(element, offset_x, offset_y)
+        # 获取元素位置
+        location = element.location
+        size = element.size
+        
+        # 计算元素中心 + 随机偏移
+        center_x = location['x'] + size['width'] // 2
+        center_y = location['y'] + size['height'] // 2
+        
+        # 随机偏移
+        offset_x = random.randint(-int(size['width'] // 4), int(size['width'] // 4))
+        offset_y = random.randint(-int(size['height'] // 4), int(size['height'] // 4))
+        
+        # 鼠标移动到目标位置
+        action.move_to_element(element)
         action.perform()
         
-        # 2. 悬停一下 (思考时间)
-        time.sleep(random.uniform(0.1, 0.4))
+        # 随机延迟（思考时间）
+        anti_detector.adaptive_delay(0.1, 0.5, context="think")
         
-        # 3. 点击 (模拟按下和松开的微小间隔)
-        action.click_and_hold().pause(random.uniform(0.05, 0.15)).release().perform()
+        # 执行点击
+        action.click_and_hold()
+        action.pause(random.uniform(0.05, 0.15))
+        action.release()
+        action.perform()
         
     except Exception as e:
         # 如果 ActionChains 失败，回退到普通点击
-        print(f"⚠️ 鼠标模拟失败，回退到普通点击: {e}")
+        print(f"⚠️ 高级鼠标模拟失败，使用标准点击: {e}")
         try:
             element.click()
         except:
@@ -227,7 +238,7 @@ def run(fixed_account=None):
         if not proxy_url:
             print("❌ 所有代理尝试失败，退出运行")
             print("=" * 50)
-            return  # 直接退出，不允许无代理运行
+            return False  # 直接退出，不允许无代理运行
         print("=" * 50)
     
     # 第一步：准备邮箱
@@ -244,7 +255,7 @@ def run(fixed_account=None):
     
     if not email_address:
         print("创建邮箱失败，退出")
-        return
+        return False
 
     # 获取地区相关参数
     user_agent = get_user_agent_for_region(detected_region)
@@ -268,7 +279,7 @@ def run(fixed_account=None):
         
     except Exception as e:
         print(f"❌ 浏览器启动失败: {e}")
-        return
+        return False
 
     # 设置时区（使用检测到的地区）- 仅对支持 CDP 的浏览器有效
     try:
@@ -482,8 +493,8 @@ def run(fixed_account=None):
         if not signup_clicked:
             print("❌ 严重错误: 无法进入注册页面")
             driver.save_screenshot("debug_failed_click.png")
-            # 这里不使用备用URL，因为用户反馈备用方案无效
-            pass
+            # 无法进入注册页面时直接失败，避免继续执行导致挂起或误判
+            return False
         
         print(f"当前页面 URL: {driver.current_url}")
         
@@ -950,6 +961,7 @@ def run(fixed_account=None):
         # 保存账号信息 (无论如何都尝试保存，因为可能已经成功)
         save_account(email_address, password, random_name, jwt_token, kiro_token, aws_sso_token)
         print("\n✅ 账号流程结束，已保存信息到 key/accounts.json")
+        return aws_sso_token is not None
 
     except Exception as e:
         print(f"过程发生错误: {e}")
@@ -959,7 +971,9 @@ def run(fixed_account=None):
             if 'email_address' in locals() and 'password' in locals():
                 save_account(email_address, password, random_name if 'random_name' in locals() else "Unknown", jwt_token if 'jwt_token' in locals() else "")
                 print("⚠️  已保存部分账号信息")
-        except: pass
+        except:
+            pass
+        return False
 
     finally:
         # 使用浏览器工厂的清理函数

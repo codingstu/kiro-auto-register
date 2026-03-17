@@ -21,6 +21,9 @@ from config import (
     EMAIL_WORKER_URL,
     EMAIL_DOMAIN,
     EMAIL_PREFIX_LENGTH,
+    EMAIL_PREFIX_STYLE,
+    EMAIL_PREFIX_RANDOM_SUFFIX_LENGTH,
+    EMAIL_PREFIX_SEPARATOR,
     EMAIL_WAIT_TIMEOUT,
     EMAIL_POLL_INTERVAL,
     HTTP_TIMEOUT
@@ -129,18 +132,33 @@ class ChatGPTMailClient:
 
         return response
     
-    def generate_email(self):
+    def generate_email(self, preferred_prefix: str = None):
         """
         从 API 获取一个新的临时邮箱地址
         返回: 邮箱地址字符串，失败返回 None
         """
         try:
+            params = None
+            if preferred_prefix:
+                # 某些服务端可能不支持该参数，失败后会自动重试无参数请求
+                params = {"name": preferred_prefix}
+
             response = self._api_request(
                 "GET",
                 "/generate-email",
+                params=params,
                 extra_headers={"Content-Type": "application/json"},
                 auth_email=self.current_email or ""
             )
+
+            # 降级兼容：若服务端拒绝参数，回退到默认生成
+            if response.status_code in (400, 404, 422):
+                response = self._api_request(
+                    "GET",
+                    "/generate-email",
+                    extra_headers={"Content-Type": "application/json"},
+                    auth_email=self.current_email or ""
+                )
             
             if response.status_code == 200:
                 result = response.json()
@@ -387,6 +405,30 @@ class ChatGPTMailClient:
 _mail_client = ChatGPTMailClient()
 
 
+def _build_human_name_prefix() -> str:
+    """构建可读性更好的邮箱前缀（仅用于命名规范）。"""
+    first_names = [
+        "oliver", "liam", "emma", "noah", "sophia", "elijah", "mia", "james",
+        "ava", "lucas", "amelia", "henry", "harper", "leo", "evelyn", "jack"
+    ]
+    last_names = [
+        "smith", "johnson", "brown", "wilson", "thomas", "moore", "martin", "lee",
+        "clark", "hall", "allen", "young", "king", "wright", "scott", "green"
+    ]
+
+    sep = EMAIL_PREFIX_SEPARATOR if EMAIL_PREFIX_SEPARATOR in (".", "_", "-") else "."
+    suffix_len = max(2, min(8, int(EMAIL_PREFIX_RANDOM_SUFFIX_LENGTH)))
+    suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=suffix_len))
+    return f"{random.choice(first_names)}{sep}{random.choice(last_names)}{sep}{suffix}"
+
+
+def _build_email_prefix() -> str:
+    style = (EMAIL_PREFIX_STYLE or "random").strip().lower()
+    if style == "human_name":
+        return _build_human_name_prefix()
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=EMAIL_PREFIX_LENGTH))
+
+
 def create_temp_email():
     """
     创建临时邮箱 (使用 mail.chatgpt.org.uk 服务)
@@ -395,8 +437,11 @@ def create_temp_email():
     注意: 第二个返回值原本是 JWT token，这里为了兼容性返回邮箱地址本身
     """
     print("📧 正在创建临时邮箱 (mail.chatgpt.org.uk)...")
-    
-    email_address = _mail_client.generate_email()
+
+    preferred_prefix = _build_email_prefix()
+    print(f"📝 目标邮箱前缀: {preferred_prefix}")
+
+    email_address = _mail_client.generate_email(preferred_prefix=preferred_prefix)
     
     if email_address:
         print(f"✅ 邮箱创建成功: {email_address}")
@@ -434,10 +479,7 @@ def create_temp_email_cloudflare():
     """
     print("正在创建临时邮箱 (Cloudflare Worker)...")
 
-    prefix = ''.join(random.choices(
-        string.ascii_lowercase + string.digits,
-        k=EMAIL_PREFIX_LENGTH
-    ))
+    prefix = _build_email_prefix()
 
     headers = {
         "Content-Type": "application/json",
