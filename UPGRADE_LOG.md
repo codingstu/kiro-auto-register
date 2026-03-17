@@ -93,14 +93,14 @@ python src/runners/main.py
 - 使用邮箱池自动轮换
 - 应用智能延迟
 
-### 场景 2: 批量注册（推荐）
+### 场景 2: 批量运行（推荐）
 
 ```bash
 # 准备5个邮箱
 python src/runners/manage_emails.py
 # 添加 5 个不同的邮箱
 
-# 批量注册
+# 批量运行
 python src/runners/main.py
 # 输入: 10 (注册10个)
 #      45  (每个间隔45秒)

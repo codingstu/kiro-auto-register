@@ -1,12 +1,6 @@
-# AWS Builder ID 自动注册工具
+# AWS Builder ID 流程测试工具
 
-🤖 全自动批量注册 AWS Builder ID 账号，并获取 Kiro OAuth Token 和 AWS SSO OIDC Token
-
-<h1 align="center">
-  🚨 警告：Kiro 封号政策更新 🚨
-  <br>
-  本仓库方法已失效，仅作讨论用途
-</h1>
+🤖 用于测试 AWS Builder ID 登录流程与凭证探测，并获取 Kiro OAuth Token 和 AWS SSO OIDC Token
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -17,13 +11,13 @@
 
 ## ✨ 功能特性
 
-- ✅ **全自动注册** - 无需手动操作，自动完成整个注册流程
+- ✅ **流程自动化** - 自动执行页面流程与结果采集
 - 📧 **临时邮箱** - 自动创建和管理临时邮箱（无需自己部署）
 - 🔐 **Token 获取** - 自动获取 Kiro Access Token 和 AWS SSO OIDC Refresh Token
 - 🌍 **多地区支持** - 支持美国、德国、日本等地区的本地化环境
 - 🎭 **代理支持** - 支持静态代理和动态代理 API
 - 📱 **设备模拟** - 支持桌面和移动设备模拟
-- 🔄 **批量注册** - 支持批量创建多个账号
+- 🔄 **批量运行** - 支持多次连续执行任务
 - 💾 **自动保存** - 账号信息自动保存为 JSON 格式
 
 ## 🚀 快速开始
@@ -71,7 +65,7 @@ region:
 
 ### 运行程序
 
-#### 方式一：批量注册（推荐）
+#### 方式一：批量运行（推荐）
 
 ```bash
 # Windows
@@ -82,10 +76,10 @@ python3 src/runners/main.py
 ```
 
 程序会提示输入：
-- 注册数量（默认 1 个）
-- 每个账号之间的间隔时间（默认 30 秒）
+- 运行数量（默认 1 次）
+- 每次运行之间的间隔时间（默认 30 秒）
 
-#### 方式二：智能注册（自动检测代理地区）
+#### 方式二：智能流程运行（自动检测代理地区）
 
 ```bash
 python src/runners/smart_run.py
@@ -246,9 +240,9 @@ docker compose up --build
 
 常用环境变量（在 `docker-compose.yml` 里改）：
 
-- `REGISTER_COUNT`：注册数量
-- `REGISTER_INTERVAL`：每个账号间隔秒数
-- `POST_PROBE`：注册后是否自动探测
+- `REGISTER_COUNT`：运行数量
+- `REGISTER_INTERVAL`：每次运行间隔秒数
+- `POST_PROBE`：运行后是否自动探测
 - `PROBE_TIMEOUT`：探测超时
 
 详细说明见：`docs/docker-compose-guide.md`
@@ -258,7 +252,7 @@ docker compose up --build
 ## 📝 注意事项
 
 1. **代理建议** - 强烈建议使用代理，避免 IP 被限制
-2. **间隔时间** - 批量注册时建议设置 30 秒以上的间隔
+2. **间隔时间** - 批量运行时建议设置 30 秒以上的间隔
 3. **成功率** - 受网络环境影响，建议使用稳定的代理服务
 4. **合规使用** - 请遵守 AWS 服务条款，仅用于学习和测试
 

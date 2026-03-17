@@ -1,1 +1,1 @@
-# AWS Builder ID 自动注册工具
+# AWS Builder ID 流程测试工具
