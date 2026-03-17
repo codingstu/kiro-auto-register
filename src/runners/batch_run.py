@@ -45,7 +45,7 @@ def batch_run(count=None):
     print(f"🚀 开始多进程批量注册，并发数量: {count}")
     print(f"📋 使用 Outlook 账号列表 ({len(OUTLOOK_ACCOUNTS)} 个)")
     print("⚠️ 注意：这将同时打开多个浏览器窗口，请确保内存充足")
-    print("⚠️ 结果将保存到 accounts.jsonl (每行一条)")
+    print("⚠️ 结果将保存到 key/accounts.json")
     
     # 稍微等待一下让用户看清提示
     time.sleep(2)

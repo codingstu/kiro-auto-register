@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import re
+import json
 import random
 import string
 import time
@@ -38,16 +39,95 @@ class ChatGPTMailClient:
     """
     
     def __init__(self):
-        self.base_url = "https://mail.chatgpt.org.uk/api"
+        self.site_url = "https://mail.chatgpt.org.uk"
+        self.base_url = f"{self.site_url}/api"
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Origin": "https://mail.chatgpt.org.uk",
-            "Referer": "https://mail.chatgpt.org.uk/"
+            "Origin": self.site_url,
+            "Referer": f"{self.site_url}/"
         }
+        self.inbox_token = ""
+        self.auth_email = ""
+        self.auth_expires_at = 0
         self.current_email = None
         self.email_created_at = None  # 邮箱创建时间戳
         self.processed_mail_ids = set()  # 已处理的邮件ID
         self.debug = True  # 调试模式
+
+    def _apply_auth(self, auth: dict):
+        if not auth:
+            return
+        self.inbox_token = auth.get("token", "") or self.inbox_token
+        self.auth_email = (auth.get("email", "") or "").strip().lower()
+        self.auth_expires_at = int(auth.get("expires_at", 0) or 0)
+
+    def _bootstrap_auth(self):
+        """从首页脚本读取 __BROWSER_AUTH，拿到初始 inbox token。"""
+        response = http_session.get(
+            self.site_url,
+            headers=self.headers,
+            timeout=HTTP_TIMEOUT
+        )
+        if response.status_code != 200:
+            return
+
+        match = re.search(r"window\.__BROWSER_AUTH\s*=\s*(\{.*?\});", response.text)
+        if not match:
+            return
+
+        try:
+            auth = json.loads(match.group(1))
+            self._apply_auth(auth)
+        except Exception:
+            return
+
+    def _refresh_auth(self, email_address: str = ""):
+        """调用 /api/inbox-token 刷新 token。"""
+        payload_email = (email_address or self.current_email or self.auth_email or "").strip().lower()
+        response = http_session.post(
+            f"{self.base_url}/inbox-token",
+            headers={**self.headers, "Content-Type": "application/json"},
+            json={"email": payload_email},
+            timeout=HTTP_TIMEOUT
+        )
+        if response.status_code != 200:
+            return
+
+        data = response.json()
+        if data.get("success") and data.get("auth"):
+            self._apply_auth(data.get("auth", {}))
+
+    def _api_request(self, method: str, path: str, *, params=None, json_body=None, extra_headers=None, auth_email: str = ""):
+        if not self.inbox_token:
+            self._bootstrap_auth()
+
+        headers = {**self.headers, **(extra_headers or {})}
+        if self.inbox_token:
+            headers["X-Inbox-Token"] = self.inbox_token
+
+        response = http_session.request(
+            method,
+            f"{self.base_url}{path}",
+            headers=headers,
+            params=params,
+            json=json_body,
+            timeout=HTTP_TIMEOUT
+        )
+
+        if response.status_code in (401, 403):
+            self._refresh_auth(auth_email)
+            if self.inbox_token:
+                headers["X-Inbox-Token"] = self.inbox_token
+                response = http_session.request(
+                    method,
+                    f"{self.base_url}{path}",
+                    headers=headers,
+                    params=params,
+                    json=json_body,
+                    timeout=HTTP_TIMEOUT
+                )
+
+        return response
     
     def generate_email(self):
         """
@@ -55,14 +135,17 @@ class ChatGPTMailClient:
         返回: 邮箱地址字符串，失败返回 None
         """
         try:
-            response = http_session.get(
-                f"{self.base_url}/generate-email",
-                headers={**self.headers, "Content-Type": "application/json"},
-                timeout=HTTP_TIMEOUT
+            response = self._api_request(
+                "GET",
+                "/generate-email",
+                extra_headers={"Content-Type": "application/json"},
+                auth_email=self.current_email or ""
             )
             
             if response.status_code == 200:
                 result = response.json()
+                if result.get("auth"):
+                    self._apply_auth(result.get("auth", {}))
                 if result.get('success') and result.get('data', {}).get('email'):
                     self.current_email = result['data']['email']
                     self.email_created_at = time.time()  # 记录创建时间
@@ -120,20 +203,22 @@ class ChatGPTMailClient:
         try:
             # 添加时间戳防止缓存
             timestamp = int(time.time() * 1000)
-            url = f"{self.base_url}/emails?email={email_address}&_t={timestamp}"
-            response = http_session.get(
-                url,
-                headers={
-                    **self.headers,
+            response = self._api_request(
+                "GET",
+                "/emails",
+                params={"email": email_address, "_t": timestamp},
+                extra_headers={
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                     "Pragma": "no-cache",
                     "Expires": "0"
                 },
-                timeout=HTTP_TIMEOUT
+                auth_email=email_address
             )
             
             if response.status_code == 200:
                 result = response.json()
+                if result.get("auth"):
+                    self._apply_auth(result.get("auth", {}))
                 
                 # 调试输出
                 if self.debug:

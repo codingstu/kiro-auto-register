@@ -67,9 +67,11 @@ def save_account(email, password, name, jwt_token="", kiro_token=None, aws_sso_t
         account_info["aws_sso_provider"] = aws_sso_token.get("provider", "BuilderId")
         account_info["status"] = "aws_sso_authorized"
     
-    file_path = "accounts.json"
+    key_dir = "key"
+    file_path = os.path.join(key_dir, "accounts.json")
     
     try:
+        os.makedirs(key_dir, exist_ok=True)
         # 读取现有账号
         accounts = []
         if os.path.exists(file_path):
@@ -90,8 +92,11 @@ def save_account(email, password, name, jwt_token="", kiro_token=None, aws_sso_t
 
 def save_account_info(email, password, name, jwt_token):
     """保存账号信息到文件"""
-    accounts_file = "accounts.json"
+    key_dir = "key"
+    accounts_file = os.path.join(key_dir, "accounts.json")
     accounts = []
+
+    os.makedirs(key_dir, exist_ok=True)
 
     if os.path.exists(accounts_file):
         with open(accounts_file, 'r', encoding='utf-8') as f:
@@ -944,7 +949,7 @@ def run(fixed_account=None):
 
         # 保存账号信息 (无论如何都尝试保存，因为可能已经成功)
         save_account(email_address, password, random_name, jwt_token, kiro_token, aws_sso_token)
-        print("\n✅ 账号流程结束，已保存信息到 accounts.jsonl")
+        print("\n✅ 账号流程结束，已保存信息到 key/accounts.json")
 
     except Exception as e:
         print(f"过程发生错误: {e}")
@@ -1033,7 +1038,7 @@ def run_batch():
     print(f"   总计: {count} 个")
     print(f"   成功: {success_count} 个")
     print(f"   失败: {fail_count} 个")
-    print(f"   账号保存在: accounts.jsonl")
+    print(f"   账号保存在: key/accounts.json")
     print("=" * 60)
 
 
